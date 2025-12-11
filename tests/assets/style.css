@@ -11,6 +11,7 @@
   --accent: #f97316;
   --success: #22c55e;
   --danger: #f43f5e;
+  --panel: rgba(15, 23, 42, 0.6);
 }
 
 body {
@@ -32,6 +33,10 @@ body {
 
 header {
   margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: var(--panel);
 }
 
 header h1 {
@@ -63,6 +68,14 @@ header p {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 14px;
+}
+
+.api-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 10px;
+  margin: 12px 0 4px;
+  align-items: center;
 }
 
 .pill {
@@ -187,6 +200,10 @@ textarea {
   flex-wrap: wrap;
 }
 
+.button-row.tight {
+  margin-top: 10px;
+}
+
 button {
   border: none;
   padding: 12px 16px;
@@ -240,7 +257,7 @@ button.ghost {
 .video-wrap {
   position: relative;
   width: 100%;
-  max-width: 520px;
+  max-width: 760px;
 }
 
 .video-wrap video,
@@ -248,6 +265,9 @@ button.ghost {
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 4 / 3;
+  min-height: 360px;
+  object-fit: cover;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: #0b1221;
@@ -258,10 +278,52 @@ button.ghost {
   top: 0;
   left: 0;
   pointer-events: none;
+  z-index: 2;
+}
+
+#camera {
+  z-index: 1;
+}
+
+#captureCanvas {
+  display: none;
 }
 
 .hint {
   margin-top: 10px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.stat-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.stat-tile {
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.taglist {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.tag {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }

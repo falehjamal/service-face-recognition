@@ -1,4 +1,3 @@
-import functools
 import math
 from typing import Dict, List, Tuple
 
@@ -8,17 +7,22 @@ import numpy as np
 
 # Lazy globals
 _model = None
-_embedder = None
+
+
+def _prepare_model(ctx_id: int):
+    model = insightface.app.FaceAnalysis(name="buffalo_l")
+    model.prepare(ctx_id=ctx_id, det_size=(640, 640))
+    return model
 
 
 def _ensure_model():
-    global _model, _embedder
-    if _model is None:
-        # Use default retinaface_r50_v1 and arcface_r100_v1
-        _model = insightface.app.FaceAnalysis(name="buffalo_l")
-        _model.prepare(ctx_id=0, det_size=(640, 640))
-    if _embedder is None:
-        _embedder = _model.models["recognition"]  # ArcFace
+    global _model
+    if _model is not None:
+        return
+    try:
+        _model = _prepare_model(ctx_id=0)  # try GPU first
+    except Exception:
+        _model = _prepare_model(ctx_id=-1)  # fallback to CPU
 
 
 def detect_faces(image: np.ndarray) -> List[Dict[str, object]]:

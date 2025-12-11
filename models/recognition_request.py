@@ -5,14 +5,14 @@ from pydantic import BaseModel, conlist
 
 
 class FaceCompareRequest(BaseModel):
-    encoding: conlist(float, min_length=128, max_length=128)
-    threshold: float = 0.6
+    encoding: conlist(float, min_length=512, max_length=512)
+    threshold: float = 0.35
 
     @classmethod
     def as_form(
         cls,
-        encoding: str = Form(..., description="JSON array of 128 floats"),
-        threshold: float = Form(0.6, description="Match threshold (default 0.6)"),
+        encoding: str = Form(..., description="JSON array of 512 floats (ArcFace)"),
+        threshold: float = Form(0.35, description="Cosine-distance threshold (default 0.35)"),
     ) -> "FaceCompareRequest":
         try:
             parsed = json.loads(encoding)

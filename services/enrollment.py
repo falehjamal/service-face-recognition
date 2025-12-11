@@ -16,8 +16,8 @@ ENROLLMENTS: List[Dict[str, object]] = []
 
 
 def _ensure_single_face_encoding(encoding: List[float]) -> List[float]:
-    if len(encoding) not in (512, 128):
-        raise HTTPException(status_code=500, detail="Encoding length mismatch")
+    if len(encoding) != 512:
+        raise HTTPException(status_code=500, detail="Encoding length mismatch; expected 512-d ArcFace")
     return encoding
 
 
@@ -82,10 +82,7 @@ async def identify_face(file: UploadFile, threshold: float = recognition.DEFAULT
         if len(target) != len(source):
             skipped += 1
             continue
-        if len(target) == 512:
-            distance = float(1.0 - float(np.dot(source, target)))
-        else:
-            distance = float(np.linalg.norm(source - target))
+        distance = float(1.0 - float(np.dot(source, target)))
         if distance < best_distance:
             best_distance = distance
             best_name = rec["name"]

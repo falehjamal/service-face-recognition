@@ -19,6 +19,10 @@
       <div class="eyebrow">Prototype Console</div>
       <h1>Realtime Face Recognition</h1>
       <p>Enroll foto sekali, lalu nyalakan deteksi live via kamera.</p>
+      <div class="api-row">
+        <label for="apiBase" class="field-label">API base URL</label>
+        <input type="text" id="apiBase" value="http://localhost:8000" />
+      </div>
       <div class="status-bar">
         <span class="pill muted" id="cameraStatus">Camera: initializing…</span>
         <span class="pill muted" id="liveStatus">Live detect: standby</span>
@@ -49,15 +53,18 @@
 
       <div class="button-row">
         <button id="enrollBtn">Enroll</button>
+        <button id="loadEnrollmentsBtn" class="ghost">Refresh enrollments</button>
       </div>
+
+      <p class="micro" id="enrollmentList">Enrollments: -</p>
     </section>
 
     <section class="card">
       <div class="card-head">
         <div>
-          <p class="badge">Live Detect</p>
-          <h2>Pratinjau kamera</h2>
-          <p class="sub">Tampilkan bounding box dan nama ketika wajah dikenali.</p>
+          <p class="badge">Live Recognize</p>
+          <h2>Pratinjau kamera + identifikasi</h2>
+          <p class="sub">Kamera menyala di panel kiri; jalankan deteksi untuk menampilkan nama & skor.</p>
         </div>
       </div>
 
@@ -67,12 +74,25 @@
           <canvas id="overlayCanvas" class="overlay"></canvas>
         </div>
         <canvas id="captureCanvas" width="640" height="480" hidden></canvas>
+        <div class="stat-box">
+          <div class="stat-tile">Pastikan browser mengizinkan kamera (secure origin: http/https localhost).</div>
+          <div class="stat-tile">Threshold bawaan 0.35 (semakin kecil semakin ketat).</div>
+          <div class="stat-tile">Setiap 1.5s frame dikirim ke /identify selama live mode aktif.</div>
+        </div>
       </div>
-      <p class="hint">Jika kamera tidak menyala, cek izin browser atau pilih device kamera lain.</p>
-      <div class="button-row">
+
+      <div class="button-row tight">
         <button id="startDetectBtn" class="secondary">Mulai deteksi live</button>
         <button id="stopDetectBtn" class="ghost">Stop</button>
       </div>
+      <div class="field-grid">
+        <div>
+          <label class="field-label" for="thresholdInput">Threshold identify</label>
+          <input type="number" step="0.01" min="0.1" max="1" id="thresholdInput" value="0.35" />
+          <p class="micro">Gunakan 0.30-0.40 untuk ArcFace; lebih kecil = lebih ketat.</p>
+        </div>
+      </div>
+      <p class="hint">Jika kamera belum tampil, pastikan izin sudah diberikan lalu refresh halaman.</p>
     </section>
 
     <section class="card">
@@ -89,9 +109,13 @@
 
   <script>
     $(function () {
-      const endpoints = {
-        enroll: "http://localhost:8000/enroll",
-        identify: "http://localhost:8000/identify",
+      const makeEndpoints = () => {
+        const base = document.getElementById("apiBase").value.replace(/\/$/, "");
+        return {
+          enroll: `${base}/enroll`,
+          identify: `${base}/identify`,
+          enrollments: `${base}/enrollments`,
+        };
       };
 
       const overlayCanvas = document.getElementById("overlayCanvas");
@@ -207,7 +231,8 @@
         const fd = new FormData();
         fd.append("name", name);
         fd.append("file", file);
-        ajaxSend(endpoints.enroll, fd, "enroll");
+        const { enroll } = makeEndpoints();
+        ajaxSend(enroll, fd, "enroll", loadEnrollments);
       });
 
       const getCameraStream = async () => {
@@ -216,6 +241,9 @@
           const video = document.getElementById("camera");
           video.srcObject = stream;
           video.onloadedmetadata = () => {
+            video.play().catch(() => {
+              /* some browsers need explicit play */
+            });
             syncOverlaySize();
             clearOverlay();
             updateChip(cameraChip, "Camera: aktif", "success");
@@ -256,7 +284,10 @@
           }
           const fd = new FormData();
           fd.append("file", new File([blob], "capture.jpg", { type: "image/jpeg" }));
-          ajaxSend(endpoints.identify, fd, "identify-live", drawOverlayFromResponse);
+          const threshold = parseFloat(document.getElementById("thresholdInput").value) || 0.35;
+          fd.append("threshold", threshold);
+          const { identify } = makeEndpoints();
+          ajaxSend(identify, fd, "identify-live", drawOverlayFromResponse);
         };
         detectTimer = setInterval(loop, 1500);
         setResult({ status: "live-detect-started" });
@@ -276,8 +307,19 @@
       $("#startDetectBtn").on("click", startLoop);
       $("#stopDetectBtn").on("click", stopLoop);
 
+      const loadEnrollments = () => {
+        const { enrollments } = makeEndpoints();
+        $.get(enrollments)
+          .done((data) => {
+            const names = (data.enrollments || []).map((e) => e.name).join(", ") || "-";
+            $("#enrollmentList").text(`Enrollments: ${names}`);
+          })
+          .fail(() => $("#enrollmentList").text("Enrollments: (gagal fetch)"));
+      };
+
       $(window).on("resize", syncOverlaySize);
       getCameraStream();
+      loadEnrollments();
     });
   </script>
 </body>

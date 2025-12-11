@@ -1,74 +1,48 @@
-# Face Recognition Microservice
+# Face Recognition Microservice (InsightFace)
 
-Microservice FastAPI untuk encode, compare, dan deteksi wajah menggunakan `face_recognition` (dlib) dari repositori https://github.com/ageitgey/face_recognition dengan endpoint async.
+FastAPI microservice untuk encode, enroll, dan identifikasi wajah berbasis InsightFace (`buffalo_l` = RetinaFace + ArcFace 512-dim, cosine distance).
 
 ## Kebutuhan
 - Python 3.10+
-- Compiler toolchain (hanya jika membangun dlib dari source)
+- CPU: `onnxruntime` (default). Jika punya GPU dengan CUDA 11, InsightFace akan mencoba GPU otomatis.
 
 ## Instalasi
-1. Clone atau salin repo ini, lalu masuk ke folder proyek ini (root repo).
-2. (Opsional tapi disarankan) Buat virtualenv: `python -m venv .venv && source .venv/bin/activate` (Windows: `source .venv/Scripts/activate`).
-3. Instal dependensi Python:
+1. Masuk ke folder proyek.
+2. (Opsional) buat virtualenv: `python -m venv .venv && .venv\Scripts\activate` (Windows) atau `source .venv/bin/activate` (Unix).
+3. Instal dependensi:
    ```bash
    pip install -r requirements.txt
    ```
-4. Instal dlib:
-   - **Linux**: pastikan `cmake`, `build-essential`, `libopenblas-dev`, dan `liblapack-dev` terpasang. Lalu:
-     ```bash
-     pip install dlib
-     ```
-   - **Windows (praktis)**: gunakan wheel prebuilt `dlib-bin` lalu pasang `face_recognition` tanpa menarik dlib sumber:
-     ```bash
-     pip install dlib-bin==19.24.6 --no-deps
-     pip install face_recognition --no-deps
-     ```
-     Jika ingin membangun sendiri: install Build Tools for Visual Studio + CMake (tambahkan ke PATH), lalu `pip install dlib`.
 
 ## Menjalankan Service
-Dari root folder proyek:
 ```bash
 uvicorn main:app --reload
 ```
-Service berjalan di `http://localhost:8000` (docs di `/docs`).
+Docs tersedia di `http://localhost:8000/docs`.
 
 ## Endpoint
 - `POST /encode`
   - Form-data: `file` (image)
-  - Output: `{ "encoding": [128 float] }`
+  - Output: `{ "encoding": [512 float] }`
 - `POST /compare`
-  - Form-data: `file` (image), `encoding` (JSON array string berisi 128 float), opsional `threshold` (default 0.6)
-  - Output: `{ "match": bool, "distance": float }`
+  - Form-data: `file` (image), `encoding` (JSON array string 512 float ArcFace), opsional `threshold` (default 0.35)
+  - Output: `{ "match": bool, "distance": float, "threshold": float }`
 - `POST /detect`
   - Form-data: `file` (image)
-  - Output: `{ "faces": [{"top": int, "right": int, "bottom": int, "left": int}, ...] }`
+  - Output: `{ "faces": [{"bbox": {"left": int, "top": int, "right": int, "bottom": int}, "det_score": float, ...}] }`
+- `POST /enroll`
+  - Form-data: `name` (text), `file` (image). Menyimpan embedding ke folder `database/*.json`.
+- `POST /identify`
+  - Form-data: `file` (image), opsional `threshold` (default 0.35). Mengembalikan `{ match, name, distance, threshold, bbox }`.
+- `GET /enrollments`
+  - Daftar nama yang sudah dienroll.
 - `GET /health`
-  - Output: `{ "status": "ok" }`
+  - Cek status service.
 
-## Contoh cURL
-- Encode:
-  ```bash
-  curl -X POST http://localhost:8000/encode \
-    -F "file=@/path/to/image.jpg"
-  ```
-- Compare (encoding dikirim sebagai JSON string pada field form `encoding`):
-  ```bash
-  curl -X POST http://localhost:8000/compare \
-    -F "file=@/path/to/image.jpg" \
-    -F 'encoding=[0.1,0.2,0.3,...128 items...]' \
-    -F "threshold=0.6"
-  ```
-- Detect:
-  ```bash
-  curl -X POST http://localhost:8000/detect \
-    -F "file=@/path/to/image.jpg"
-  ```
-- Health:
-  ```bash
-  curl http://localhost:8000/health
-  ```
+## Workflow Singkat
+1. `POST /enroll` dengan foto wajah + `name`; embedding 512-d ArcFace disimpan ke `database/`.
+2. `POST /identify` atau `POST /compare` untuk mencari kecocokan berdasarkan cosine distance (semakin kecil semakin mirip). Default threshold 0.35.
 
-## Workflow Singkat Encode-Compare
-1. `POST /encode`: kirim gambar wajah tunggal, service mengembalikan vektor embedding 128 dimensi.
-2. Simpan embedding tersebut di aplikasi Anda.
-3. `POST /compare`: kirim gambar baru dan embedding target, service menghitung jarak Euclidean; hasil `match` true jika jarak <= threshold (default 0.6).
+## Catatan
+- Embedding lama (128-d) tidak kompatibel. Re-enroll dengan model baru bila sebelumnya memakai backend lain.
+- Jika GPU tidak tersedia, service otomatis jatuh ke CPU (ctx_id=-1) sehingga lebih lambat tapi tetap berfungsi.
