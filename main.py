@@ -53,6 +53,11 @@ async def enrollments():
     return {"enrollments": enrollment.list_enrollments()}
 
 
+@app.delete("/enrollments/{name}")
+async def delete_enrollment(name: str):
+    return enrollment.delete_enrollment(name)
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

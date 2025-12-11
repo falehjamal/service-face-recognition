@@ -32,3 +32,4 @@ coverage*
 
 # Database dumps
 *.sqlite3
+test/mobile

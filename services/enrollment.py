@@ -56,6 +56,20 @@ def _load_records() -> None:
             continue
 
 
+def _delete_record(name: str) -> bool:
+    """Remove a stored enrollment file by matching its name field."""
+    for path in DB_DIR.glob("*.json"):
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if (data.get("name") or path.stem) == name:
+                path.unlink(missing_ok=True)
+                return True
+        except Exception:
+            continue
+    return False
+
+
 async def enroll_face(name: str, file: UploadFile) -> Dict[str, object]:
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
@@ -111,3 +125,15 @@ def list_enrollments() -> List[Dict[str, object]]:
 
 # Load existing enrollments at import time.
 _load_records()
+
+
+def delete_enrollment(name: str) -> Dict[str, object]:
+    """Delete enrollment both in memory and persisted file."""
+    global ENROLLMENTS
+    before = len(ENROLLMENTS)
+    ENROLLMENTS = [rec for rec in ENROLLMENTS if rec.get("name") != name]
+    removed_file = _delete_record(name)
+    after = len(ENROLLMENTS)
+    if before == after and not removed_file:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+    return {"deleted": name, "count": after}
