@@ -1,0 +1,138 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f6fb;
+  color: #0f172a;
+}
+
+.container {
+  max-width: 860px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+header p {
+  margin: 4px 0 16px;
+  color: #475569;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.field-label {
+  display: block;
+  margin: 12px 0 6px;
+  font-weight: 600;
+}
+
+input[type="file"],
+input[type="number"],
+textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #f8fafc;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+button {
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  transition: transform 0.08s ease, box-shadow 0.12s ease;
+}
+
+button:hover {
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+.result-header {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+#result {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  min-height: 140px;
+}
+
+.camera-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.video-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+
+.video-wrap video,
+.video-wrap canvas.overlay {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+
+.video-wrap video {
+  background: #000;
+}
+
+.video-wrap canvas.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.hint {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 13px;
+}
