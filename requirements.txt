@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 python-multipart
-numpy
+numpy<2
 torch
 torchvision
 torchaudio

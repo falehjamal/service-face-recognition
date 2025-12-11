@@ -4,31 +4,63 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Face Recognition Client</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="assets/style.css" />
   <script src="assets/jquery.js"></script>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Face Recognition Client</h1>
-      <p>Enroll foto lalu uji identifikasi via kamera.</p>
+      <div class="eyebrow">Prototype Console</div>
+      <h1>Realtime Face Recognition</h1>
+      <p>Enroll foto sekali, lalu nyalakan deteksi live via kamera.</p>
+      <div class="status-bar">
+        <span class="pill muted" id="cameraStatus">Camera: initializing…</span>
+        <span class="pill muted" id="liveStatus">Live detect: standby</span>
+      </div>
     </header>
 
     <section class="card">
-      <label class="field-label" for="imageFile">Gambar</label>
-      <input type="file" id="imageFile" accept="image/*" />
+      <div class="card-head">
+        <div>
+          <p class="badge">Enrollment</p>
+          <h2>Tambahkan identitas</h2>
+          <p class="sub">Unggah foto terbaik dengan wajah jelas, lalu beri nama.</p>
+        </div>
+      </div>
 
-      <label class="field-label" for="enrollName">Nama untuk enrollment</label>
-      <input type="text" id="enrollName" placeholder="misal: Alice" />
+      <div class="field-grid">
+        <div>
+          <label class="field-label" for="imageFile">Gambar</label>
+          <input type="file" id="imageFile" accept="image/*" />
+          <p class="micro">Format jpeg/png, pencahayaan terang.</p>
+        </div>
+        <div>
+          <label class="field-label" for="enrollName">Nama untuk enrollment</label>
+          <input type="text" id="enrollName" placeholder="misal: Alice" />
+          <p class="micro">Nama akan muncul saat terdeteksi.</p>
+        </div>
+      </div>
 
       <div class="button-row">
         <button id="enrollBtn">Enroll</button>
-        <button id="identifyBtn">Identify (kamera)</button>
       </div>
     </section>
 
     <section class="card">
-      <div class="result-header">Camera Preview</div>
+      <div class="card-head">
+        <div>
+          <p class="badge">Live Detect</p>
+          <h2>Pratinjau kamera</h2>
+          <p class="sub">Tampilkan bounding box dan nama ketika wajah dikenali.</p>
+        </div>
+      </div>
+
       <div class="camera-row">
         <div class="video-wrap">
           <video id="camera" autoplay playsinline muted></video>
@@ -36,15 +68,21 @@
         </div>
         <canvas id="captureCanvas" width="640" height="480" hidden></canvas>
       </div>
-      <p class="hint">Jika kamera tidak menyala, cek izin browser.</p>
+      <p class="hint">Jika kamera tidak menyala, cek izin browser atau pilih device kamera lain.</p>
       <div class="button-row">
-        <button id="startDetectBtn" class="secondary">Start Detect</button>
-        <button id="stopDetectBtn" class="secondary">Stop Detect</button>
+        <button id="startDetectBtn" class="secondary">Mulai deteksi live</button>
+        <button id="stopDetectBtn" class="ghost">Stop</button>
       </div>
     </section>
 
     <section class="card">
-      <div class="result-header">Hasil</div>
+      <div class="card-head">
+        <div>
+          <p class="badge">Log</p>
+          <h2>Respons</h2>
+          <p class="sub">Semua respons dari server akan tampil di sini.</p>
+        </div>
+      </div>
       <pre id="result">{ "result": "menunggu request" }</pre>
     </section>
   </div>
@@ -58,10 +96,17 @@
 
       const overlayCanvas = document.getElementById("overlayCanvas");
       const overlayCtx = overlayCanvas.getContext("2d");
+      const cameraChip = document.getElementById("cameraStatus");
+      const liveChip = document.getElementById("liveStatus");
 
       const setResult = (payload) => {
         const formatted = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
         $("#result").text(formatted);
+      };
+
+      const updateChip = (el, text, tone) => {
+        el.textContent = text;
+        el.className = `pill ${tone}`;
       };
 
       const showError = (jqXHR) => {
@@ -126,7 +171,7 @@
         const padding = 6;
         const textY = Math.max(0, top - 22);
 
-        overlayCtx.font = "16px Arial";
+        overlayCtx.font = "16px 'Space Grotesk', 'Segoe UI', sans-serif";
         overlayCtx.textBaseline = "top";
         const textWidth = overlayCtx.measureText(text).width;
         overlayCtx.fillStyle = "rgba(15,23,42,0.85)";
@@ -173,9 +218,11 @@
           video.onloadedmetadata = () => {
             syncOverlaySize();
             clearOverlay();
+            updateChip(cameraChip, "Camera: aktif", "success");
           };
         } catch (err) {
           console.warn("Camera not available", err);
+          updateChip(cameraChip, "Camera: gagal", "danger");
           setResult({ status: "camera-error", error: err.message });
         }
       };
@@ -196,14 +243,6 @@
         });
       };
 
-      $("#identifyBtn").on("click", async () => {
-        const blob = await captureFrame();
-        if (!blob) return;
-        const fd = new FormData();
-        fd.append("file", new File([blob], "capture.jpg", { type: "image/jpeg" }));
-        ajaxSend(endpoints.identify, fd, "identify", drawOverlayFromResponse);
-      });
-
       // Real-time loop
       let detectTimer = null;
       const startLoop = () => {
@@ -212,14 +251,16 @@
           const blob = await captureFrame();
           if (!blob) {
             detectTimer = null;
+            updateChip(liveChip, "Live detect: berhenti", "danger");
             return;
           }
           const fd = new FormData();
           fd.append("file", new File([blob], "capture.jpg", { type: "image/jpeg" }));
           ajaxSend(endpoints.identify, fd, "identify-live", drawOverlayFromResponse);
         };
-        detectTimer = setInterval(loop, 1500); // every 1.5s to avoid overload
+        detectTimer = setInterval(loop, 1500);
         setResult({ status: "live-detect-started" });
+        updateChip(liveChip, "Live detect: berjalan", "accent");
       };
 
       const stopLoop = () => {
@@ -228,6 +269,7 @@
           detectTimer = null;
           setResult({ status: "live-detect-stopped" });
         }
+        updateChip(liveChip, "Live detect: standby", "muted");
         clearOverlay();
       };
 
