@@ -32,31 +32,17 @@
     <section class="card">
       <div class="card-head">
         <div>
-          <p class="badge">Enrollment</p>
-          <h2>Tambahkan identitas</h2>
-          <p class="sub">Unggah foto terbaik dengan wajah jelas, lalu beri nama.</p>
+          <p class="badge">Info</p>
+          <h2>Identifikasi realtime</h2>
+          <p class="sub">Gunakan kamera untuk mengenali wajah berdasarkan data enrollment yang sudah ada.</p>
         </div>
       </div>
-
-      <div class="field-grid">
-        <div>
-          <label class="field-label" for="imageFile">Gambar</label>
-          <input type="file" id="imageFile" accept="image/*" />
-          <p class="micro">Format jpeg/png, pencahayaan terang.</p>
-        </div>
-        <div>
-          <label class="field-label" for="enrollName">Nama untuk enrollment</label>
-          <input type="text" id="enrollName" placeholder="misal: Alice" />
-          <p class="micro">Nama akan muncul saat terdeteksi.</p>
-        </div>
+      <div class="taglist" id="enrollmentList">
+        <span class="tag">Memuat enrollments…</span>
       </div>
-
-      <div class="button-row">
-        <button id="enrollBtn">Enroll</button>
-        <button id="loadEnrollmentsBtn" class="ghost">Refresh enrollments</button>
+      <div class="micro" style="margin-top:8px;">
+        Pengelolaan enrollment ada di <a href="enroll.php" style="color:#fbbf24; font-weight:700;">halaman Enrollment</a>.
       </div>
-
-      <p class="micro" id="enrollmentList">Enrollments: -</p>
     </section>
 
     <section class="card">
@@ -112,7 +98,6 @@
       const makeEndpoints = () => {
         const base = document.getElementById("apiBase").value.replace(/\/$/, "");
         return {
-          enroll: `${base}/enroll`,
           identify: `${base}/identify`,
           enrollments: `${base}/enrollments`,
         };
@@ -141,15 +126,6 @@
           /* keep raw */
         }
         setResult({ status: jqXHR.status, error: body });
-      };
-
-      const requireFile = () => {
-        const file = document.getElementById("imageFile").files[0];
-        if (!file) {
-          alert("Pilih file gambar terlebih dahulu.");
-          return null;
-        }
-        return file;
       };
 
       const syncOverlaySize = () => {
@@ -189,7 +165,7 @@
         overlayCtx.lineWidth = 3;
         overlayCtx.strokeRect(left, top, width, height);
 
-        const label = data.match && data.name ? data.name : data.name || "Unknown";
+        const label = data.match && data.name ? data.name : "Not Found";
         const scoreText = typeof bbox.det_score === "number" ? ` · ${bbox.det_score.toFixed(2)}` : "";
         const text = `${label}${scoreText}`;
         const padding = 6;
@@ -220,21 +196,6 @@
         });
       };
 
-      $("#enrollBtn").on("click", () => {
-        const file = requireFile();
-        if (!file) return;
-        const name = $("#enrollName").val().trim();
-        if (!name) {
-          alert("Isi nama untuk enrollment.");
-          return;
-        }
-        const fd = new FormData();
-        fd.append("name", name);
-        fd.append("file", file);
-        const { enroll } = makeEndpoints();
-        ajaxSend(enroll, fd, "enroll", loadEnrollments);
-      });
-
       const getCameraStream = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -244,6 +205,8 @@
             video.play().catch(() => {
               /* some browsers need explicit play */
             });
+            video.style.visibility = "visible";
+            video.style.opacity = "1";
             syncOverlaySize();
             clearOverlay();
             updateChip(cameraChip, "Camera: aktif", "success");
@@ -287,7 +250,12 @@
           const threshold = parseFloat(document.getElementById("thresholdInput").value) || 0.35;
           fd.append("threshold", threshold);
           const { identify } = makeEndpoints();
-          ajaxSend(identify, fd, "identify-live", drawOverlayFromResponse);
+          ajaxSend(identify, fd, "identify-live", (data) => {
+            drawOverlayFromResponse(data);
+            if (!data.match) {
+              setResult({ status: "notfound", distance: data.distance, threshold: data.threshold });
+            }
+          });
         };
         detectTimer = setInterval(loop, 1500);
         setResult({ status: "live-detect-started" });
@@ -311,10 +279,13 @@
         const { enrollments } = makeEndpoints();
         $.get(enrollments)
           .done((data) => {
-            const names = (data.enrollments || []).map((e) => e.name).join(", ") || "-";
-            $("#enrollmentList").text(`Enrollments: ${names}`);
+            const names = (data.enrollments || []).map((e) => e.name);
+            const html = names.length
+              ? names.map((n) => `<span class="tag">${n}</span>`).join(" ")
+              : '<span class="tag">Belum ada enrollment</span>';
+            $("#enrollmentList").html(html);
           })
-          .fail(() => $("#enrollmentList").text("Enrollments: (gagal fetch)"));
+          .fail(() => $("#enrollmentList").html('<span class="tag">Gagal memuat enrollments</span>'));
       };
 
       $(window).on("resize", syncOverlaySize);
