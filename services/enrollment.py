@@ -147,24 +147,26 @@ async def verify_user(
     user_id: int,
     file: UploadFile,
     threshold: float = recognition.DEFAULT_THRESHOLD,
+    min_face_ratio: float = 0.15,  # Minimum face width as ratio of frame width
+    min_det_score: float = 0.7,    # Minimum detection score
 ) -> Dict[str, object]:
     """
     Verify if the face in the image matches a specific user's enrollment.
     
-    This is the main flow for attendance:
-    1. Laravel sends tenant_id + user_id + photo
-    2. Python finds the specific user's enrollment
-    3. Compares the photo with that user's face encoding
-    4. Returns success if match, failure if not
+    Includes liveness checks:
+    - Face size check: face must be at least min_face_ratio of frame width
+    - Detection score check: face detection confidence must be >= min_det_score
     
     Args:
         tenant_id: Tenant identifier
         user_id: User ID to verify against
         file: Image file containing the face
         threshold: Maximum distance threshold for a match
+        min_face_ratio: Minimum face width as ratio of frame (0.15 = 15%)
+        min_det_score: Minimum face detection score (0.0-1.0)
         
     Returns:
-        Dict with verification result
+        Dict with verification result and liveness info
     """
     # Validate tenant exists
     config = await tenant_manager.get_tenant_config(tenant_id)
@@ -181,9 +183,39 @@ async def verify_user(
             "message": f"User {user_id} belum terdaftar (tidak ada enrollment)",
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "liveness": None,
         }
     
-    # Encode the input face
+    # Read image data first to get dimensions
+    data = await file.read()
+    if not data:
+        return {
+            "success": False,
+            "verified": False,
+            "message": "File gambar kosong",
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "liveness": None,
+        }
+    
+    # Decode image to get frame dimensions
+    import cv2
+    arr = np.frombuffer(data, dtype=np.uint8)
+    image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if image is None:
+        return {
+            "success": False,
+            "verified": False,
+            "message": "Gagal decode gambar",
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "liveness": None,
+        }
+    
+    frame_height, frame_width = image.shape[:2]
+    
+    # Reset file position and encode face
+    await file.seek(0)
     try:
         encoding, bbox = await recognition.encode_image_with_box(file)
     except HTTPException as e:
@@ -193,8 +225,68 @@ async def verify_user(
             "message": f"Gagal mendeteksi wajah: {e.detail}",
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "liveness": {"face_detected": False},
         }
     
+    # =========================================
+    # Liveness Check #1: Face Size
+    # =========================================
+    face_width = bbox.get("right", 0) - bbox.get("left", 0)
+    face_height = bbox.get("bottom", 0) - bbox.get("top", 0)
+    face_ratio = face_width / frame_width if frame_width > 0 else 0
+    
+    face_size_ok = face_ratio >= min_face_ratio
+    
+    # =========================================
+    # Liveness Check #2: Detection Score
+    # =========================================
+    det_score = bbox.get("det_score", 0)
+    det_score_ok = det_score >= min_det_score
+    
+    # Build liveness result
+    liveness = {
+        "face_detected": True,
+        "face_width": int(face_width),
+        "face_height": int(face_height),
+        "frame_width": frame_width,
+        "frame_height": frame_height,
+        "face_ratio": round(face_ratio, 3),
+        "min_face_ratio": min_face_ratio,
+        "face_size_ok": face_size_ok,
+        "det_score": round(det_score, 3),
+        "min_det_score": min_det_score,
+        "det_score_ok": det_score_ok,
+        "liveness_passed": face_size_ok and det_score_ok,
+    }
+    
+    # Check liveness first
+    if not face_size_ok:
+        return {
+            "success": True,
+            "verified": False,
+            "message": f"Wajah terlalu jauh! Dekatkan ke kamera (saat ini {face_ratio*100:.1f}%, minimal {min_face_ratio*100:.0f}%)",
+            "user_id": user_id,
+            "user_name": enrollment["label"],
+            "bbox": bbox,
+            "tenant_id": tenant_id,
+            "liveness": liveness,
+        }
+    
+    if not det_score_ok:
+        return {
+            "success": True,
+            "verified": False,
+            "message": f"Kualitas deteksi rendah ({det_score:.2f}). Pastikan pencahayaan cukup dan wajah terlihat jelas.",
+            "user_id": user_id,
+            "user_name": enrollment["label"],
+            "bbox": bbox,
+            "tenant_id": tenant_id,
+            "liveness": liveness,
+        }
+    
+    # =========================================
+    # Face Matching
+    # =========================================
     source = np.array(encoding, dtype=float)
     target = np.array(enrollment["encoding"], dtype=float)
     
@@ -206,6 +298,7 @@ async def verify_user(
             "message": "Encoding tidak kompatibel. User perlu re-enroll.",
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "liveness": liveness,
         }
     
     # Calculate cosine distance
@@ -223,6 +316,7 @@ async def verify_user(
         "threshold": threshold,
         "bbox": bbox,
         "tenant_id": tenant_id,
+        "liveness": liveness,
     }
 
 

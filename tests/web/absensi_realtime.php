@@ -39,7 +39,7 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1100px;
             width: 100%;
         }
 
@@ -72,24 +72,23 @@
             color: var(--muted);
         }
 
-        .config-bar input,
-        .config-bar select {
+        .config-bar input {
             padding: 8px 12px;
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--text);
             font-size: 14px;
-            width: 120px;
+            width: 100px;
         }
 
         .main-area {
             display: grid;
-            grid-template-columns: 1fr 300px;
+            grid-template-columns: 1fr 320px;
             gap: 20px;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
             .main-area {
                 grid-template-columns: 1fr;
             }
@@ -180,9 +179,11 @@
         }
 
         .status-title {
-            font-size: 14px;
+            font-size: 12px;
             color: var(--muted);
-            margin-bottom: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .status-box {
@@ -214,17 +215,17 @@
         }
 
         .status-icon {
-            font-size: 48px;
+            font-size: 40px;
             margin-bottom: 8px;
         }
 
         .status-text {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
         }
 
         .status-sub {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--muted);
             margin-top: 4px;
         }
@@ -234,11 +235,11 @@
         }
 
         .info-list li {
-            padding: 8px 0;
+            padding: 6px 0;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
-            font-size: 13px;
+            font-size: 12px;
         }
 
         .info-list li:last-child {
@@ -251,6 +252,42 @@
 
         .info-list .value {
             font-weight: 600;
+        }
+
+        .info-list .value.ok {
+            color: var(--success);
+        }
+
+        .info-list .value.bad {
+            color: var(--danger);
+        }
+
+        .liveness-section {
+            margin-top: 16px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .liveness-bar {
+            margin-top: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .liveness-bar-fill {
+            height: 100%;
+            transition: width 0.3s, background 0.3s;
+        }
+
+        .liveness-bar-fill.ok {
+            background: var(--success);
+        }
+
+        .liveness-bar-fill.bad {
+            background: var(--danger);
         }
 
         .log-section {
@@ -272,8 +309,8 @@
             border-radius: 8px;
             padding: 12px;
             font-family: monospace;
-            font-size: 12px;
-            max-height: 200px;
+            font-size: 11px;
+            max-height: 150px;
             overflow-y: auto;
             white-space: pre-wrap;
         }
@@ -286,13 +323,14 @@
 
         .mode-btn {
             flex: 1;
-            padding: 12px;
+            padding: 10px;
             text-align: center;
             border-radius: 8px;
             cursor: pointer;
             border: 1px solid var(--border);
             background: transparent;
             color: var(--muted);
+            font-size: 13px;
             transition: all 0.2s;
         }
 
@@ -307,13 +345,13 @@
 <body>
     <div class="container">
         <h1>🎯 Absensi Wajah Realtime</h1>
-        <p class="subtitle">Simulasi absensi dengan verifikasi wajah otomatis</p>
+        <p class="subtitle">Verifikasi wajah dengan liveness detection (ukuran wajah + kualitas deteksi)</p>
 
         <!-- Config Bar -->
         <div class="config-bar">
             <label>
                 API URL
-                <input type="text" id="apiUrl" value="http://localhost:8000" />
+                <input type="text" id="apiUrl" value="http://localhost:8000" style="width:160px" />
             </label>
             <label>
                 Tenant ID
@@ -329,7 +367,7 @@
             </label>
             <label>
                 Interval (ms)
-                <input type="number" id="interval" value="2000" step="500" min="500" />
+                <input type="number" id="interval" value="1500" step="500" min="500" />
             </label>
         </div>
 
@@ -342,32 +380,57 @@
                 </div>
                 <div class="camera-controls">
                     <button id="btnStart" class="btn-primary">▶️ Mulai Kamera</button>
-                    <button id="btnAuto" class="btn-success" disabled>🔄 Auto Verifikasi</button>
-                    <button id="btnManual" class="btn-ghost" disabled>📸 Verifikasi Sekali</button>
+                    <button id="btnAuto" class="btn-success" disabled>🔄 Auto Mode</button>
+                    <button id="btnManual" class="btn-ghost" disabled>📸 Manual</button>
                     <button id="btnStop" class="btn-danger" disabled>⏹️ Stop</button>
                 </div>
             </div>
 
             <!-- Status Panel -->
             <div class="status-panel">
-                <div class="status-title">MODE</div>
+                <div class="status-title">Mode</div>
                 <div class="mode-toggle">
                     <div class="mode-btn active" data-mode="manual">Manual</div>
                     <div class="mode-btn" data-mode="auto">Auto</div>
                 </div>
 
-                <div class="status-title">STATUS VERIFIKASI</div>
+                <div class="status-title">Status Verifikasi</div>
                 <div id="statusBox" class="status-box waiting">
                     <div class="status-icon">⏳</div>
                     <div class="status-text">Menunggu</div>
                     <div class="status-sub">Nyalakan kamera untuk mulai</div>
                 </div>
 
-                <div class="status-title">DETAIL</div>
+                <!-- Liveness Section -->
+                <div class="liveness-section">
+                    <div class="status-title">📊 Liveness Check</div>
+
+                    <div style="margin-bottom:10px">
+                        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+                            <span>Face Size</span>
+                            <span id="faceSizeValue">-</span>
+                        </div>
+                        <div class="liveness-bar">
+                            <div id="faceSizeBar" class="liveness-bar-fill" style="width:0%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+                            <span>Detection Score</span>
+                            <span id="detScoreValue">-</span>
+                        </div>
+                        <div class="liveness-bar">
+                            <div id="detScoreBar" class="liveness-bar-fill" style="width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-title" style="margin-top:16px">Detail</div>
                 <ul class="info-list">
-                    <li><span class="label">User Name</span><span class="value" id="infoName">-</span></li>
+                    <li><span class="label">User</span><span class="value" id="infoName">-</span></li>
                     <li><span class="label">Distance</span><span class="value" id="infoDistance">-</span></li>
-                    <li><span class="label">Threshold</span><span class="value" id="infoThreshold">-</span></li>
+                    <li><span class="label">Liveness</span><span class="value" id="infoLiveness">-</span></li>
                     <li><span class="label">Waktu</span><span class="value" id="infoTime">-</span></li>
                 </ul>
             </div>
@@ -381,31 +444,26 @@
     </div>
 
     <script>
-        // Elements
         const video = document.getElementById('camera');
         const overlay = document.getElementById('overlay');
         const ctx = overlay.getContext('2d');
         const statusBox = document.getElementById('statusBox');
         const logEl = document.getElementById('log');
 
-        // Buttons
         const btnStart = document.getElementById('btnStart');
         const btnAuto = document.getElementById('btnAuto');
         const btnManual = document.getElementById('btnManual');
         const btnStop = document.getElementById('btnStop');
 
-        // State
         let stream = null;
         let autoInterval = null;
-        let isAutoMode = false;
 
-        // Helpers
         const getConfig = () => ({
             apiUrl: document.getElementById('apiUrl').value.replace(/\/$/, ''),
             tenantId: parseInt(document.getElementById('tenantId').value) || 1,
             userId: parseInt(document.getElementById('userId').value) || 1,
             threshold: parseFloat(document.getElementById('threshold').value) || 0.35,
-            interval: parseInt(document.getElementById('interval').value) || 2000,
+            interval: parseInt(document.getElementById('interval').value) || 1500,
         });
 
         const log = (msg) => {
@@ -416,17 +474,56 @@
         const setStatus = (type, icon, text, sub) => {
             statusBox.className = `status-box ${type}`;
             statusBox.innerHTML = `
-        <div class="status-icon">${icon}</div>
-        <div class="status-text">${text}</div>
-        <div class="status-sub">${sub}</div>
-      `;
+                <div class="status-icon">${icon}</div>
+                <div class="status-text">${text}</div>
+                <div class="status-sub">${sub}</div>
+            `;
+        };
+
+        const updateLiveness = (liveness) => {
+            if (!liveness) {
+                document.getElementById('faceSizeValue').textContent = '-';
+                document.getElementById('detScoreValue').textContent = '-';
+                document.getElementById('faceSizeBar').style.width = '0%';
+                document.getElementById('detScoreBar').style.width = '0%';
+                return;
+            }
+
+            // Face size (show as percentage, min 15%)
+            const faceRatio = liveness.face_ratio || 0;
+            const minRatio = liveness.min_face_ratio || 0.15;
+            const facePct = Math.min(100, (faceRatio / minRatio) * 100);
+            const faceOk = liveness.face_size_ok;
+
+            document.getElementById('faceSizeValue').textContent =
+                `${(faceRatio * 100).toFixed(1)}% (min ${(minRatio * 100).toFixed(0)}%)`;
+            document.getElementById('faceSizeBar').style.width = `${Math.min(100, faceRatio * 100 / 0.5)}%`;
+            document.getElementById('faceSizeBar').className =
+                `liveness-bar-fill ${faceOk ? 'ok' : 'bad'}`;
+
+            // Detection score
+            const detScore = liveness.det_score || 0;
+            const minDet = liveness.min_det_score || 0.7;
+
+            document.getElementById('detScoreValue').textContent =
+                `${(detScore * 100).toFixed(0)}% (min ${(minDet * 100).toFixed(0)}%)`;
+            document.getElementById('detScoreBar').style.width = `${detScore * 100}%`;
+            document.getElementById('detScoreBar').className =
+                `liveness-bar-fill ${liveness.det_score_ok ? 'ok' : 'bad'}`;
+
+            // Liveness status
+            document.getElementById('infoLiveness').textContent =
+                liveness.liveness_passed ? '✓ Passed' : '✗ Failed';
+            document.getElementById('infoLiveness').className =
+                `value ${liveness.liveness_passed ? 'ok' : 'bad'}`;
         };
 
         const updateInfo = (data) => {
             document.getElementById('infoName').textContent = data.user_name || '-';
-            document.getElementById('infoDistance').textContent = data.distance?.toFixed(4) || '-';
-            document.getElementById('infoThreshold').textContent = data.threshold || '-';
+            document.getElementById('infoDistance').textContent =
+                data.distance ? data.distance.toFixed(4) : '-';
             document.getElementById('infoTime').textContent = new Date().toLocaleTimeString();
+            updateLiveness(data.liveness);
         };
 
         const syncOverlay = () => {
@@ -434,7 +531,7 @@
             overlay.height = video.clientHeight;
         };
 
-        const drawBbox = (bbox, verified) => {
+        const drawBbox = (bbox, verified, liveness) => {
             if (!bbox) return;
             syncOverlay();
 
@@ -447,17 +544,40 @@
             const h = (bbox.bottom - bbox.top) * scaleY;
 
             ctx.clearRect(0, 0, overlay.width, overlay.height);
-            ctx.strokeStyle = verified ? '#22c55e' : '#ef4444';
+
+            // Color based on liveness + verified
+            let color = '#ef4444'; // red default
+            if (liveness && !liveness.liveness_passed) {
+                color = '#f59e0b'; // warning orange
+            } else if (verified) {
+                color = '#22c55e'; // success green
+            }
+
+            ctx.strokeStyle = color;
             ctx.lineWidth = 4;
             ctx.strokeRect(x, y, w, h);
 
             // Label
-            ctx.fillStyle = verified ? '#22c55e' : '#ef4444';
-            ctx.font = 'bold 16px Space Grotesk';
-            ctx.fillText(verified ? '✓ MATCH' : '✗ NOT MATCH', x, y - 10);
+            let label = '✗ NOT MATCH';
+            if (liveness && !liveness.liveness_passed) {
+                if (!liveness.face_size_ok) label = '⚠️ TERLALU JAUH';
+                else if (!liveness.det_score_ok) label = '⚠️ KUALITAS RENDAH';
+            } else if (verified) {
+                label = '✓ MATCH';
+            }
+
+            ctx.fillStyle = color;
+            ctx.font = 'bold 14px Space Grotesk';
+            ctx.fillText(label, x, y - 10);
+
+            // Show face ratio
+            if (liveness) {
+                ctx.font = '12px Space Grotesk';
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillText(`Size: ${(liveness.face_ratio * 100).toFixed(1)}% | Score: ${(liveness.det_score * 100).toFixed(0)}%`, x, y + h + 20);
+            }
         };
 
-        // Camera functions
         const startCamera = async () => {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
@@ -500,7 +620,6 @@
             setStatus('waiting', '⏳', 'Menunggu', 'Nyalakan kamera untuk mulai');
         };
 
-        // Verification
         const captureFrame = () => {
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
@@ -520,8 +639,7 @@
                 return;
             }
 
-            setStatus('detecting', '🔍', 'Memverifikasi...', 'Mengirim ke server');
-            log(`Verifikasi: tenant=${config.tenantId}, user=${config.userId}`);
+            setStatus('detecting', '🔍', 'Memverifikasi...', 'Checking liveness...');
 
             const formData = new FormData();
             formData.append('tenant_id', config.tenantId);
@@ -536,8 +654,18 @@
                 });
 
                 const data = await response.json();
+                const liveness = data.liveness;
 
-                if (data.verified) {
+                // Check liveness first
+                if (liveness && !liveness.liveness_passed) {
+                    if (!liveness.face_size_ok) {
+                        setStatus('error', '📏', 'TERLALU JAUH', `Dekatkan wajah (${(liveness.face_ratio * 100).toFixed(0)}%)`);
+                        log(`⚠️ Face too far: ${(liveness.face_ratio * 100).toFixed(1)}%`);
+                    } else if (!liveness.det_score_ok) {
+                        setStatus('error', '💡', 'KUALITAS RENDAH', 'Perbaiki pencahayaan');
+                        log(`⚠️ Low detection score: ${(liveness.det_score * 100).toFixed(0)}%`);
+                    }
+                } else if (data.verified) {
                     setStatus('success', '✅', 'BERHASIL', `Halo, ${data.user_name}!`);
                     log(`✓ Verified: ${data.user_name} (distance: ${data.distance?.toFixed(4)})`);
                 } else if (data.success === false) {
@@ -549,7 +677,7 @@
                 }
 
                 updateInfo(data);
-                drawBbox(data.bbox, data.verified);
+                drawBbox(data.bbox, data.verified, liveness);
 
             } catch (err) {
                 setStatus('error', '❌', 'Error', err.message);
@@ -562,10 +690,10 @@
             const config = getConfig();
 
             log(`Auto mode: interval ${config.interval}ms`);
-            verify(); // First run immediately
+            verify();
             autoInterval = setInterval(verify, config.interval);
 
-            btnAuto.textContent = '⏸️ Pause Auto';
+            btnAuto.textContent = '⏸️ Pause';
             btnAuto.className = 'btn-danger';
         };
 
@@ -574,36 +702,27 @@
                 clearInterval(autoInterval);
                 autoInterval = null;
             }
-            btnAuto.textContent = '🔄 Auto Verifikasi';
+            btnAuto.textContent = '🔄 Auto Mode';
             btnAuto.className = 'btn-success';
             log('Auto mode stopped');
         };
 
-        // Event listeners
         btnStart.onclick = startCamera;
         btnStop.onclick = stopCamera;
         btnManual.onclick = verify;
 
         btnAuto.onclick = () => {
-            if (autoInterval) {
-                stopAuto();
-            } else {
-                startAuto();
-            }
+            if (autoInterval) stopAuto();
+            else startAuto();
         };
 
-        // Mode toggle
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
 
-                const mode = btn.dataset.mode;
-                if (mode === 'auto' && stream) {
-                    startAuto();
-                } else {
-                    stopAuto();
-                }
+                if (btn.dataset.mode === 'auto' && stream) startAuto();
+                else stopAuto();
             };
         });
 
