@@ -653,7 +653,8 @@
             const bbox = detection.boundingBox;
 
             // 1. Face Distance (size)
-            const faceRatio = bbox.width / frameWidth;
+            // MediaPipe bbox.width is already normalized (0-1), so use it directly
+            const faceRatio = bbox.width; // This is already the ratio of face width to frame width
             result.distance.value = faceRatio;
 
             if (faceRatio < THRESHOLDS.minFaceRatio) {
@@ -668,15 +669,17 @@
             }
 
             // 2. Face Position (centered)
-            const faceCenterX = bbox.xCenter;
-            const faceCenterY = bbox.yCenter;
+            // xCenter and yCenter are normalized (0-1), 0.5 = center
+            const faceCenterX = bbox.xCenter; // 0-1, 0.5 = center
+            const faceCenterY = bbox.yCenter; // 0-1, 0.5 = center  
             const offsetX = Math.abs(faceCenterX - 0.5);
             const offsetY = Math.abs(faceCenterY - 0.5);
 
             if (offsetX > THRESHOLDS.maxOffsetX || offsetY > THRESHOLDS.maxOffsetY) {
                 result.position.ok = false;
+                // Note: video is mirrored, so left/right directions are swapped
                 if (offsetX > offsetY) {
-                    result.position.message = faceCenterX < 0.5 ? 'Geser ke kanan' : 'Geser ke kiri';
+                    result.position.message = faceCenterX < 0.5 ? 'Geser ke kiri' : 'Geser ke kanan';
                 } else {
                     result.position.message = faceCenterY < 0.5 ? 'Geser ke bawah' : 'Geser ke atas';
                 }
