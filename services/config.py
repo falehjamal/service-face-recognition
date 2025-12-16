@@ -19,7 +19,20 @@ class Settings:
     """Application settings loaded from environment variables."""
     
     # Gateway Database
-    DB_HOST: str = os.getenv("DB_HOST", "127.0.0.1")
+    # DB_HOST can be "host:server_port" format (e.g., "172.16.3.17:1991")
+    # where server_port is the SSH tunnel/server port, and DB_PORT is MySQL port
+    _raw_db_host: str = os.getenv("DB_HOST", "127.0.0.1")
+    
+    # Parse host and server port from DB_HOST
+    if ":" in _raw_db_host:
+        _host_parts = _raw_db_host.split(":", 1)
+        DB_HOST: str = _host_parts[0]
+        DB_SERVER_PORT: int = int(_host_parts[1])
+    else:
+        DB_HOST: str = _raw_db_host
+        DB_SERVER_PORT: int = 0  # Not using server port
+    
+    # MySQL port (default 3306)
     DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
     DB_DATABASE: str = os.getenv("DB_DATABASE", "sekolah_gateway")
     DB_USERNAME: str = os.getenv("DB_USERNAME", "root")

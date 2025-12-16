@@ -51,9 +51,11 @@ class TenantManager:
     async def initialize(self) -> None:
         """Initialize gateway connection pool and Redis."""
         if self._gateway_pool is None:
+            # Use server port (SSH tunnel) if specified, otherwise use MySQL port
+            connect_port = settings.DB_SERVER_PORT if settings.DB_SERVER_PORT > 0 else settings.DB_PORT
             self._gateway_pool = await aiomysql.create_pool(
                 host=settings.DB_HOST,
-                port=settings.DB_PORT,
+                port=connect_port,
                 user=settings.DB_USERNAME,
                 password=settings.DB_PASSWORD,
                 db=settings.DB_DATABASE,
