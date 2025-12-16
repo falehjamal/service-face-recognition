@@ -282,7 +282,12 @@ class TenantManager:
         label: str,
         face_encoding: List[float],
     ) -> Dict[str, Any]:
-        """Add new enrollment for a tenant."""
+        """
+        Add or update enrollment for a tenant.
+        
+        If user_id already has an enrollment, it will be replaced (upsert behavior).
+        Each user_id can only have one active enrollment.
+        """
         await self.initialize()
         
         table = self._enrollment_table(tenant_id)
@@ -290,6 +295,13 @@ class TenantManager:
         
         async with self.get_tenant_connection(tenant_id) as conn:
             async with conn.cursor() as cursor:
+                # Delete existing enrollment for this user_id first (upsert behavior)
+                await cursor.execute(
+                    f"DELETE FROM `{table}` WHERE user_id = %s",
+                    (user_id,),
+                )
+                
+                # Insert new enrollment
                 await cursor.execute(
                     f"INSERT INTO `{table}` (user_id, label, face_encoding, status) "
                     f"VALUES (%s, %s, %s, 'active')",
@@ -299,6 +311,8 @@ class TenantManager:
         
         # Invalidate cache
         await self._redis.delete(f"tenant:{tenant_id}:enrollments")
+        # Also invalidate user-specific cache
+        await self._redis.delete(f"tenant:{tenant_id}:user:{user_id}:enrollment")
         
         return {
             "id": enrollment_id,
