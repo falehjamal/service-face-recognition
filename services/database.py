@@ -26,6 +26,7 @@ class TenantConfig:
     db_user: str
     db_pass: Optional[str]
     status: str
+    db_server_port: int = 0  # SSH tunnel/server port if db_host contains port
 
 
 class TenantManager:
@@ -120,15 +121,26 @@ class TenantManager:
         if not row:
             return None
         
+        # Parse db_host - may contain port in "host:port" format
+        raw_db_host = row["db_host"] or ""
+        if ":" in raw_db_host:
+            host_parts = raw_db_host.split(":", 1)
+            parsed_host = host_parts[0]
+            parsed_server_port = int(host_parts[1])
+        else:
+            parsed_host = raw_db_host
+            parsed_server_port = 0
+        
         config = TenantConfig(
             id=row["id"],
             name=row["name"],
-            db_host=row["db_host"],
-            db_port=row["port"],  # tenants table uses 'port' column
+            db_host=parsed_host,
+            db_port=row["port"],  # tenants table uses 'port' column (MySQL port)
             db_name=row["db_name"],
             db_user=row["db_user"],
             db_pass=row["db_pass"],
             status=row["status"],
+            db_server_port=parsed_server_port,  # SSH tunnel/server port
         )
         
         # Cache in Redis
@@ -149,9 +161,11 @@ class TenantManager:
         if not config:
             return None
         
+        # Use server port (SSH tunnel) if specified, otherwise use MySQL port
+        connect_port = config.db_server_port if config.db_server_port > 0 else config.db_port
         pool = await aiomysql.create_pool(
             host=config.db_host,
-            port=config.db_port,
+            port=connect_port,
             user=config.db_user,
             password=config.db_pass or "",
             db=config.db_name,
