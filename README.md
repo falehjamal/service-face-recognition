@@ -1,276 +1,128 @@
-# Face Recognition API
+# Service Face Recognition
 
-Multi-tenant face recognition microservice dengan Redis caching.
+Microservice pengenalan wajah berbasis **FastAPI** dengan dukungan **Multi-tenant** dan **Redis Caching**. Dirancang untuk performa tinggi dalam sistem absensi dan keamanan sekolah.
+
+## Fitur Utama
+
+- **Multi-tenant**: Database dan cache terisolasi per tenant (sekolah).
+- **Verifikasi Wajah (1:1)**: Memastikan wajah cocok dengan user tertentu (untuk absensi).
+- **Identifikasi Wajah (1:N)**: Mencari pemilik wajah dari database.
+- **High Performance**: Menggunakan Redis untuk menyimpan encoding wajah, meminimalkan query database.
+- **Utilitas**: Deteksi wajah dan encoding vektor langsung.
+
+---
 
 ## Quick Start
 
+### 1. Instalasi
+Pastikan Python 3.10+ terinstall.
+
 ```bash
-# Install
+# Install dependencies
 pip install -r requirements.txt
 
-# Copy & edit config
+# Setup konfigurasi
 cp .env.example .env
+# Edit .env sesuaikan dengan database dan redis
+```
 
-# Run
+### 2. Menjalankan Service
+
+```bash
+# Mode Development (Reload otomatis)
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Mode Production
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 ---
 
-## API Documentation
+## Dokumentasi API
 
-### 1. Verify User (Absensi)
-**Endpoint utama untuk absensi.** Verifikasi wajah terhadap user tertentu.
+### A. Absensi & Verifikasi (Core)
 
-```
-POST /verify
-Content-Type: multipart/form-data
-```
+Endpoint utama untuk fitur absensi. Membandingkan foto yang dikirim dengan data wajah user yang tersimpan.
 
-**Request:**
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| tenant_id | int | ✓ | - | ID tenant |
-| user_id | int | ✓ | - | ID user yang akan diverifikasi |
-| file | file | ✓ | - | Gambar wajah |
-| threshold | float | - | 0.35 | Threshold (0.30-0.40) |
+#### 1. Verifikasi User
+`POST /verify`
 
-**Response (Sukses - Wajah Cocok):**
+**Parameter (Form Data):**
+- `tenant_id`: ID Sekolah/Tenant.
+- `user_id`: ID Siswa/User yang akan absen.
+- `file`: File foto wajah (JPEG/PNG).
+- `threshold`: (Opsional) Batas kemiripan (Default: 0.35).
+
+**Response Sukses:**
 ```json
 {
   "success": true,
   "verified": true,
   "message": "Verifikasi berhasil, wajah cocok",
-  "user_id": 1,
-  "user_name": "John Doe",
-  "enrollment_id": 1,
-  "distance": 0.28,
-  "threshold": 0.35,
-  "bbox": {"left": 120, "top": 80, "right": 320, "bottom": 350},
-  "tenant_id": 1
-}
-```
-
-**Response (Gagal - Bukan Orangnya):**
-```json
-{
-  "success": true,
-  "verified": false,
-  "message": "Verifikasi gagal, bukan orang yang sama",
-  "user_id": 1,
-  "user_name": "John Doe",
-  "distance": 0.58,
-  "threshold": 0.35,
-  "tenant_id": 1
-}
-```
-
-**Response (User Belum Enroll):**
-```json
-{
-  "success": false,
-  "verified": false,
-  "message": "User 1 belum terdaftar (tidak ada enrollment)",
-  "tenant_id": 1,
-  "user_id": 1
+  "user_id": 123,
+  "distance": 0.25
 }
 ```
 
 ---
 
-### 2. Enroll Face
-Simpan wajah baru ke database.
+### B. Manajemen Wajah (Enrollment)
 
-```
-POST /enroll
-Content-Type: multipart/form-data
-```
+Mengelola data wajah siswa/guru dalam database.
 
-**Request:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| tenant_id | int | ✓ | ID tenant |
-| user_id | int | ✓ | ID user di tabel user_{tenant_id} |
-| name | string | ✓ | Nama/label untuk enrollment |
-| file | file | ✓ | Gambar wajah (JPEG/PNG) |
+#### 2. Daftarkan Wajah (Enroll)
+`POST /enroll`
 
-**Response:**
-```json
-{
-  "stored": {
-    "id": 1,
-    "user_id": 1,
-    "label": "John Doe",
-    "tenant_id": 1
-  },
-  "count": 5,
-  "tenant_id": 1
-}
-```
+Menyimpan template wajah user baru.
+**Parameter:** `tenant_id`, `user_id`, `name` (Nama User), `file` (Foto).
+
+#### 3. Cari Identitas (Identify)
+`POST /identify`
+
+Mencari siapa pemilik wajah ini dari seluruh database tenant.
+**Parameter:** `tenant_id`, `file`.
+
+#### 4. Lihat Daftar Enrollment
+`GET /enrollments/{tenant_id}`
+
+#### 5. Hapus Enrollment
+- By ID: `DELETE /enrollments/{tenant_id}/{enrollment_id}`
+- By Name: `DELETE /enrollments/{tenant_id}/name/{nama_user}`
 
 ---
 
-### 2. Identify Face
-Identifikasi wajah dari database enrollment.
+### C. Utilitas & Tools
+Fungsi dasar pengolahan wajah tanpa database.
 
-```
-POST /identify
-Content-Type: multipart/form-data
-```
+#### 6. Deteksi Wajah
+`POST /detect`
+Mengembalikan koordinat wajah (bounding box) dari foto yang diupload.
 
-**Request:**
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| tenant_id | int | ✓ | - | ID tenant |
-| file | file | ✓ | - | Gambar wajah |
-| threshold | float | - | 0.35 | Threshold (0.30-0.40, lebih kecil = lebih ketat) |
-
-**Response (Match):**
-```json
-{
-  "match": true,
-  "name": "John Doe",
-  "user_id": 1,
-  "enrollment_id": 1,
-  "distance": 0.28,
-  "threshold": 0.35,
-  "count": 5,
-  "bbox": {
-    "left": 120,
-    "top": 80,
-    "right": 320,
-    "bottom": 350,
-    "det_score": 0.99
-  },
-  "tenant_id": 1
-}
-```
-
-**Response (No Match):**
-```json
-{
-  "match": false,
-  "name": "Closest Name",
-  "user_id": 2,
-  "enrollment_id": 3,
-  "distance": 0.52,
-  "threshold": 0.35,
-  "count": 5,
-  "bbox": {...},
-  "tenant_id": 1
-}
-```
+#### 7. Compare Manual
+`POST /compare`
+Membandingkan foto dengan vektor encoding tertentu secara langsung.
 
 ---
 
-### 3. List Enrollments
-Daftar semua enrollment untuk tenant.
+### D. System & Cache
 
-```
-GET /enrollments/{tenant_id}
-```
+#### 8. Refresh Cache
+`POST /cache/{tenant_id}/refresh-enrollments`
+Paksa reload data dari database ke Redis. Gunakan jika ada perubahan manual di database.
 
-**Response:**
-```json
-{
-  "enrollments": [
-    {"id": 1, "user_id": 1, "name": "John Doe", "created_at": "2024-01-15 10:30:00"},
-    {"id": 2, "user_id": 2, "name": "Jane Doe", "created_at": "2024-01-15 11:00:00"}
-  ],
-  "tenant_id": 1
-}
-```
+#### 9. Health Check
+`GET /health`
+Mengecek status service.
 
 ---
 
-### 4. Delete Enrollment
-
-**By ID:**
-```
-DELETE /enrollments/{tenant_id}/{enrollment_id}
-```
-
-**By Name:**
-```
-DELETE /enrollments/{tenant_id}/name/{name}
-```
-
-**Response:**
-```json
-{
-  "deleted": 1,
-  "count": 4,
-  "tenant_id": 1
-}
-```
-
----
-
-### 5. Refresh Cache
-Invalidate cache dan reload data dari database.
-
-```
-POST /cache/{tenant_id}/refresh-enrollments
-```
-
-**Response:**
-```json
-{
-  "cache_refreshed": true,
-  "tenant_id": 1,
-  "enrollment_count": 5
-}
-```
-
----
-
-### 6. Cache Status
-Cek status cache tenant.
-
-```
-GET /cache/{tenant_id}/status
-```
-
-**Response:**
-```json
-{
-  "tenant_id": 1,
-  "enrollment_cache_exists": true,
-  "enrollment_cache_ttl": 45,
-  "config_cache_exists": true,
-  "config_cache_ttl": 280,
-  "connection_pool_active": true
-}
-```
-
----
-
-### 7. Health Check
-
-```
-GET /health
-```
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "version": "2.0.0"
-}
-```
-
----
-
-## Error Responses
+## Catatan Error
+Format standar error jika terjadi masalah:
 
 ```json
 {
-  "detail": "Error message here"
+  "detail": "Pesan error yang menjelaskan penyebabnya"
 }
 ```
-
-| Status | Description |
-|--------|-------------|
-| 400 | Bad request (no face detected, invalid file) |
-| 404 | Tenant/enrollment not found |
-| 500 | Server error |
+- **400 Bad Request**: Wajah tidak terdeteksi atau file rusak.
+- **404 Not Found**: Tenant atau User tidak ditemukan.
