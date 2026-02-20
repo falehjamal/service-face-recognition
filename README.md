@@ -1,128 +1,84 @@
-# Service Face Recognition
+# Face Recognition Service (Multi-Tenant)
 
-Microservice pengenalan wajah berbasis **FastAPI** dengan dukungan **Multi-tenant** dan **Redis Caching**. Dirancang untuk performa tinggi dalam sistem absensi dan keamanan sekolah.
+Microservice pengenalan wajah (Face Recognition) berbasis **FastAPI** dan **InsightFace**. Sistem ini dirancang untuk mendukung arsitektur **Multi-Tenant** (banyak sekolah/klien) dan menggunakan **Redis** untuk caching data wajah agar proses pengenalan lebih cepat (high performance).
 
-## Fitur Utama
+Sangat cocok digunakan untuk sistem absensi cerdas, verifikasi identitas, dan keamanan.
 
-- **Multi-tenant**: Database dan cache terisolasi per tenant (sekolah).
-- **Verifikasi Wajah (1:1)**: Memastikan wajah cocok dengan user tertentu (untuk absensi).
-- **Identifikasi Wajah (1:N)**: Mencari pemilik wajah dari database.
-- **High Performance**: Menggunakan Redis untuk menyimpan encoding wajah, meminimalkan query database.
-- **Utilitas**: Deteksi wajah dan encoding vektor langsung.
+## ‚ú® Fitur Utama
 
----
+- **Multi-Tenant Architecture**: Data wajah dan database diisolasi per tenant (misal: per sekolah/perusahaan).
+- **High Accuracy Face Recognition**: Menggunakan model AI dari `insightface` dan `onnxruntime`.
+- **Redis Caching**: Mempercepat proses identifikasi wajah (1:N) dan verifikasi (1:1) tanpa harus selalu query ke database.
+- **Asynchronous API**: Dibangun dengan FastAPI dan `aiomysql` untuk performa tinggi dan non-blocking I/O.
+- **Client-Side Pre-processing**: Dilengkapi dengan contoh implementasi frontend (PHP & MediaPipe) untuk deteksi wajah di sisi klien sebelum dikirim ke server.
 
-## Quick Start
+## Ì≥Ç Struktur Project
 
-### 1. Instalasi
-Pastikan Python 3.10+ terinstall.
+```text
+.
+‚îú‚îÄ‚îÄ database/          # Script SQL untuk migrasi dan pembuatan tabel
+‚îú‚îÄ‚îÄ models/            # Pydantic models untuk validasi request/response API
+‚îú‚îÄ‚îÄ services/          # Core logic aplikasi (Database, InsightFace, Redis, Enrollment)
+‚îú‚îÄ‚îÄ tests/web/         # Contoh implementasi frontend menggunakan PHP & MediaPipe
+‚îú‚îÄ‚îÄ main.py            # Entry point aplikasi FastAPI (Routing & Endpoints)
+‚îî‚îÄ‚îÄ requirements.txt   # Daftar dependensi Python
+```
 
+## Ìª†Ô∏è Prasyarat (Prerequisites)
+
+Sebelum menjalankan project ini, pastikan sistem Anda memiliki:
+- **Python 3.10+**
+- **MySQL / MariaDB** (Untuk penyimpanan data utama)
+- **Redis Server** (Untuk caching vector wajah)
+- **C++ Build Tools** (Dibutuhkan oleh `insightface` saat instalasi di Windows)
+
+## Ì∫Ä Cara Instalasi & Menjalankan
+
+1. **Clone / Buka Project**
+   Buka terminal dan arahkan ke direktori project.
+
+2. **Buat Virtual Environment & Install Dependensi**
+   ```bash
+   python -m venv .venv
+   source .venv/Scripts/activate  # Untuk Windows
+   # source .venv/bin/activate    # Untuk Linux/Mac
+   
+   pip install -r requirements.txt
+   ```
+
+3. **Setup Database & Environment**
+   - Buat database MySQL sesuai kebutuhan.
+   - Jalankan script SQL yang ada di `database/migrations/create_tables.sql`.
+   - Buat file `.env` (jika belum ada) dan sesuaikan konfigurasi koneksi Database & Redis.
+
+4. **Jalankan Server FastAPI**
+   ```bash
+   # Mode Development (Auto-reload)
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
+   Server akan berjalan di `http://localhost:8000`.
+   Anda bisa mengakses dokumentasi interaktif API (Swagger UI) di `http://localhost:8000/docs`.
+
+## Ì≥° Daftar Endpoint API Utama
+
+### Basic Operations (Tanpa Database)
+- `POST /encode` : Mengubah gambar wajah menjadi vektor (512-dimensi).
+- `POST /compare`: Membandingkan dua wajah (1:1) berdasarkan gambar dan vektor.
+- `POST /detect` : Mendeteksi posisi wajah (bounding box) dalam sebuah gambar.
+
+### Multi-Tenant Operations (Dengan Database & Redis)
+- `POST /enroll`  : Mendaftarkan wajah baru untuk user tertentu di tenant tertentu.
+- `POST /identify`: Mencari dan mengenali wajah dari seluruh data wajah yang ada di suatu tenant (1:N).
+- `POST /verify`  : Memverifikasi apakah wajah yang dikirim cocok dengan user ID tertentu di suatu tenant (1:1).
+
+## Ì≤ª Testing Web (Frontend)
+
+Project ini menyertakan contoh implementasi frontend menggunakan PHP di dalam folder `tests/web/`. 
+Fitur ini menggunakan **MediaPipe** untuk mendeteksi wajah secara realtime melalui webcam sebelum mengirimkan gambar ke backend FastAPI.
+
+Untuk mencobanya, Anda bisa menggunakan Laragon/XAMPP atau menjalankan server PHP bawaan:
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup konfigurasi
-cp .env.example .env
-# Edit .env sesuaikan dengan database dan redis
+cd tests/web
+php -S localhost:8080
 ```
-
-### 2. Menjalankan Service
-
-```bash
-# Mode Development (Reload otomatis)
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# Mode Production
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
----
-
-## Dokumentasi API
-
-### A. Absensi & Verifikasi (Core)
-
-Endpoint utama untuk fitur absensi. Membandingkan foto yang dikirim dengan data wajah user yang tersimpan.
-
-#### 1. Verifikasi User
-`POST /verify`
-
-**Parameter (Form Data):**
-- `tenant_id`: ID Sekolah/Tenant.
-- `user_id`: ID Siswa/User yang akan absen.
-- `file`: File foto wajah (JPEG/PNG).
-- `threshold`: (Opsional) Batas kemiripan (Default: 0.35).
-
-**Response Sukses:**
-```json
-{
-  "success": true,
-  "verified": true,
-  "message": "Verifikasi berhasil, wajah cocok",
-  "user_id": 123,
-  "distance": 0.25
-}
-```
-
----
-
-### B. Manajemen Wajah (Enrollment)
-
-Mengelola data wajah siswa/guru dalam database.
-
-#### 2. Daftarkan Wajah (Enroll)
-`POST /enroll`
-
-Menyimpan template wajah user baru.
-**Parameter:** `tenant_id`, `user_id`, `name` (Nama User), `file` (Foto).
-
-#### 3. Cari Identitas (Identify)
-`POST /identify`
-
-Mencari siapa pemilik wajah ini dari seluruh database tenant.
-**Parameter:** `tenant_id`, `file`.
-
-#### 4. Lihat Daftar Enrollment
-`GET /enrollments/{tenant_id}`
-
-#### 5. Hapus Enrollment
-- By ID: `DELETE /enrollments/{tenant_id}/{enrollment_id}`
-- By Name: `DELETE /enrollments/{tenant_id}/name/{nama_user}`
-
----
-
-### C. Utilitas & Tools
-Fungsi dasar pengolahan wajah tanpa database.
-
-#### 6. Deteksi Wajah
-`POST /detect`
-Mengembalikan koordinat wajah (bounding box) dari foto yang diupload.
-
-#### 7. Compare Manual
-`POST /compare`
-Membandingkan foto dengan vektor encoding tertentu secara langsung.
-
----
-
-### D. System & Cache
-
-#### 8. Refresh Cache
-`POST /cache/{tenant_id}/refresh-enrollments`
-Paksa reload data dari database ke Redis. Gunakan jika ada perubahan manual di database.
-
-#### 9. Health Check
-`GET /health`
-Mengecek status service.
-
----
-
-## Catatan Error
-Format standar error jika terjadi masalah:
-
-```json
-{
-  "detail": "Pesan error yang menjelaskan penyebabnya"
-}
-```
-- **400 Bad Request**: Wajah tidak terdeteksi atau file rusak.
-- **404 Not Found**: Tenant atau User tidak ditemukan.
+Buka browser dan akses `http://localhost:8080/absensi_realtime.php`.
